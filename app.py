@@ -106,8 +106,3 @@ async def query_rag(data: QueryRequest):
         raise HTTPException(status_code=400, detail="Query cannot be empty")
     response, sources = perform_rag_search(data.query)
     return {"query": data.query, "response": response, "sources": sources}
-
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
