@@ -1,16 +1,36 @@
 import os
-import subprocess
-import chainlit as cl
+import logging
 from dotenv import load_dotenv
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+
+# Load environment variables
+load_dotenv()
+
 from pinecone import Pinecone
 from langchain_pinecone import PineconeVectorStore
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
+from fastapi.middleware.cors import CORSMiddleware
 
-# Load environment variables
-load_dotenv()
+# Initialize FastAPI app
+app = FastAPI()
+
+# Configure CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Change this to specific domains in production
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+# Define request model
+class QueryRequest(BaseModel):
+    query: str
 
 # Initialize OpenAI Embeddings
 embedding = OpenAIEmbeddings(model=os.getenv("EMBEDDING_MODEL"))
@@ -71,30 +91,23 @@ rag_chain = (
 def perform_rag_search(query):
     print("Retrieved Documents:")
     similar_docs = vector_store.similarity_search(query, k=3)  # Retrieve top 3 similar documents
-    sources = [doc.metadata.get('source', 'Unknown') for doc in similar_docs]
-
+    sources = []
+    for doc in similar_docs:
+        source = doc.metadata.get('source', 'Unknown')
+        sources.append(source)
+    
     response = rag_chain.invoke(query)
     return response, sources
 
-# Chainlit Event Handler
-@cl.on_message
-async def on_message(message: cl.Message):
-    query = message.content.strip()
-    if not query:
-        await cl.Message(content="Query cannot be empty.").send()
-        return
+# FastAPI Endpoint
+@app.post("/query")
+async def query_rag(data: QueryRequest):
+    if not data.query:
+        raise HTTPException(status_code=400, detail="Query cannot be empty")
+    response, sources = perform_rag_search(data.query)
+    return {"query": data.query, "response": response, "sources": sources}
 
-    response, sources = perform_rag_search(query)
-    
-    # Send response to the user
-    await cl.Message(content=response).send()
-
-    # Send sources if available
-    if sources:
-        sources_text = "\n".join(f"- {source}" for source in sources)
-        await cl.Message(content=f"**Sources:**\n{sources_text}").send()
 
 if __name__ == "__main__":
-    import chainlit as cl
-
-    subprocess.run(["chainlit", "run", "main.py"])
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)

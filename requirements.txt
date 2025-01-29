@@ -4,4 +4,3 @@ langchain-openai
 langchain-pinecone
 python-dotenv
 uvicorn
-chainlit
