@@ -1,0 +1,5 @@
+fastapi[standrad]
+langchain
+langchain-openai
+langchain-pinecone
+python-dotenv
