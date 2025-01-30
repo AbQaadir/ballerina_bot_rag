@@ -2,7 +2,6 @@ import os
 import subprocess
 import chainlit as cl
 from dotenv import load_dotenv
-# from pyngrok import ngrok
 from pinecone import Pinecone
 from langchain_pinecone import PineconeVectorStore
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
@@ -100,21 +99,3 @@ async def on_message(message: cl.Message):
     if sources:
         sources_text = "\n".join(f"- {source}" for source in sources)
         await cl.Message(content=f"**Sources:**\n{sources_text}").send()
-
-# Run Chainlit with ngrok
-if __name__ == "__main__":
-    # # Ensure ngrok is authenticated with the token from .env file
-    # ngrok.set_auth_token(ngrok_auth_token)
-
-    # Start Chainlit in a subprocess
-    chainlit_process = subprocess.Popen(["chainlit", "run", "app.py"])
-
-    # # Start an ngrok tunnel for port 8000 (default Chainlit port)
-    # public_url = ngrok.connect(8000).public_url
-    # print(f"🔥 Ngrok is running! Access your app at: {public_url}")
-
-    # Keep script running
-    try:
-        chainlit_process.wait()
-    except KeyboardInterrupt:
-        chainlit_process.terminate()

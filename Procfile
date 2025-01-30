@@ -1,1 +1,1 @@
-web: python app.py
+web: chainlit run app.py
