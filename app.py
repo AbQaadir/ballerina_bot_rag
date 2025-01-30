@@ -1,36 +1,23 @@
 import os
-import logging
+import subprocess
+import chainlit as cl
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-
-# Load environment variables
-load_dotenv()
-
+# from pyngrok import ngrok
 from pinecone import Pinecone
 from langchain_pinecone import PineconeVectorStore
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
-from fastapi.middleware.cors import CORSMiddleware
 
-# Initialize FastAPI app
-app = FastAPI()
+# Load environment variables
+load_dotenv()
 
-# Configure CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Change this to specific domains in production
-    allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-
-# Define request model
-class QueryRequest(BaseModel):
-    query: str
+# # Check NGROK_AUTH_TOKEN
+# ngrok_auth_token = os.getenv("NGROK_AUTH_TOKEN")
+# print("NGROK_AUTH_TOKEN:", ngrok_auth_token)  # Check if it's loaded
+# if not ngrok_auth_token:
+#     raise ValueError("NGROK_AUTH_TOKEN is not set in the .env file.")
 
 # Initialize OpenAI Embeddings
 embedding = OpenAIEmbeddings(model=os.getenv("EMBEDDING_MODEL"))
@@ -91,23 +78,43 @@ rag_chain = (
 def perform_rag_search(query):
     print("Retrieved Documents:")
     similar_docs = vector_store.similarity_search(query, k=3)  # Retrieve top 3 similar documents
-    sources = []
-    for doc in similar_docs:
-        source = doc.metadata.get('source', 'Unknown')
-        sources.append(source)
-    
+    sources = [doc.metadata.get('source', 'Unknown') for doc in similar_docs]
+
     response = rag_chain.invoke(query)
     return response, sources
 
-# FastAPI Endpoint
-@app.post("/query")
-async def query_rag(data: QueryRequest):
-    if not data.query:
-        raise HTTPException(status_code=400, detail="Query cannot be empty")
-    response, sources = perform_rag_search(data.query)
-    return {"query": data.query, "response": response, "sources": sources}
+# Chainlit Event Handler
+@cl.on_message
+async def on_message(message: cl.Message):
+    query = message.content.strip()
+    if not query:
+        await cl.Message(content="Query cannot be empty.").send()
+        return
 
+    response, sources = perform_rag_search(query)
+    
+    # Send response to the user
+    await cl.Message(content=response).send()
 
+    # Send sources if available
+    if sources:
+        sources_text = "\n".join(f"- {source}" for source in sources)
+        await cl.Message(content=f"**Sources:**\n{sources_text}").send()
+
+# Run Chainlit with ngrok
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    # # Ensure ngrok is authenticated with the token from .env file
+    # ngrok.set_auth_token(ngrok_auth_token)
+
+    # Start Chainlit in a subprocess
+    chainlit_process = subprocess.Popen(["chainlit", "run", "main.py"])
+
+    # # Start an ngrok tunnel for port 8000 (default Chainlit port)
+    # public_url = ngrok.connect(8000).public_url
+    # print(f"🔥 Ngrok is running! Access your app at: {public_url}")
+
+    # Keep script running
+    try:
+        chainlit_process.wait()
+    except KeyboardInterrupt:
+        chainlit_process.terminate()
