@@ -107,7 +107,7 @@ if __name__ == "__main__":
     # ngrok.set_auth_token(ngrok_auth_token)
 
     # Start Chainlit in a subprocess
-    chainlit_process = subprocess.Popen(["chainlit", "run", "main.py"])
+    chainlit_process = subprocess.Popen(["chainlit", "run", "app.py"])
 
     # # Start an ngrok tunnel for port 8000 (default Chainlit port)
     # public_url = ngrok.connect(8000).public_url
